@@ -4,333 +4,111 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum LeaveStatus {
-  pending
-  approved
-  rejected
-  cancelled
-}
-
-enum TicketPriority {
-  low
-  medium
-  high
-  critical
-}
-
-enum TicketStatus {
-  open
-  in_progress
-  resolved
-  closed
-}
-
-enum AccessType {
-  view
-  download
-}
-
-// =====================================================
-// MODELS (Tables)
-// =====================================================
-
-model Role {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  permissions Json     @default("[]")
-  users       User[]
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("roles")
+  url      = env("DATABASE_URL") 
 }
 
 model User {
-  id              Int              @id @default(autoincrement())
-  email           String           @unique
-  passwordHash    String           @map("password_hash")
-  roleId          Int              @map("role_id")
-  role            Role             @relation(fields: [roleId], references: [id])
-  isActive        Boolean          @default(true) @map("is_active")
-  isFirstLogin    Boolean          @default(true) @map("is_first_login")
-  lastLogin       DateTime?        @map("last_login")
-  employee        Employee?
-  auditLogs       AuditLog[]
-  notifications   Notification[]
-  onboardingTasks OnboardingTask[]
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-
-  @@index([email])
-  @@index([roleId])
-  @@map("users")
+  id            String         @id @default(uuid())
+  username      String         @unique
+  email         String         @unique
+  passwordHash  String
+  employee      Employee?
+  roles         Role[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
 }
 
 model Employee {
-  id                 Int                 @id @default(autoincrement())
-  userId             Int?                @unique @map("user_id")
-  user               User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  employeeCode       String?             @unique @map("employee_code")
-  firstName          String              @map("first_name")
-  lastName           String              @map("last_name")
-  phone              String?
-  address            String?
-  birthDate          DateTime?           @map("birth_date")
-  hireDate           DateTime?           @map("hire_date")
-  department         String?
-  position           String?
-  jobTitleId         Int?                @map("job_title_id")
-  jobTitle           JobTitle?           @relation(fields: [jobTitleId], references: [id])
-  managerId          Int?                @map("manager_id")
-  manager            Employee?           @relation("EmployeeManager", fields: [managerId], references: [id])
-  subordinates       Employee[]          @relation("EmployeeManager")
-  profilePicture     String?             @map("profile_picture")
-  leaveRequests      LeaveRequest[]
-  ticketsCreated     Ticket[]            @relation("TicketCreator")
-  ticketsAssigned    Ticket[]            @relation("TicketAssignee")
-  ticketComments     TicketComment[]
-  documents          Document[]
-  payrolls           Payroll[]
-  payrollAccessLogs  PayrollAccessLog[]
-  approvedLeaves     LeaveRequest[]      @relation("ApprovedBy")
-  uploadedPayrolls   Payroll[]           @relation("PayrollUploader")
-  documentAccessLogs DocumentAccessLog[]
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
-
-  @@index([userId])
-  @@index([managerId])
-  @@index([department])
-  @@map("employees")
+  id                  String               @id @default(uuid())
+  fullName            String
+  department          String
+  status              String
+  userId              String               @unique
+  user                User                 @relation(fields: [userId], references: [id])
+  managerId           String?
+  manager             Employee?            @relation("ManagerSubordinate", fields: [managerId], references: [id])
+  subordinates        Employee[]           @relation("ManagerSubordinate")
+  jobTitleId          String?
+  jobTitle            JobTitle?            @relation(fields: [jobTitleId], references: [id])
+  leaveRequests       LeaveRequest[]
+  payrollRecords      PayrollRecord[]
+  onboardingChecklist OnboardingChecklist?
+  documents           Document[]
+  tickets             Ticket[]
 }
 
-model JobTitle {
-  id          Int        @id @default(autoincrement())
-  title       String     @unique
-  level       Int?
-  department  String?
-  description String?
-  employees   Employee[]
-  createdAt   DateTime   @default(now()) @map("created_at")
-
-  @@map("job_titles")
-}
-
-model AuditLog {
-  id         Int      @id @default(autoincrement())
-  userId     Int?     @map("user_id")
-  user       User?    @relation(fields: [userId], references: [id])
-  action     String
-  entityType String?  @map("entity_type")
-  entityId   Int?     @map("entity_id")
-  oldValues  Json?    @map("old_values")
-  newValues  Json?    @map("new_values")
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@index([userId])
-  @@index([createdAt])
-  @@index([entityType, entityId])
-  @@map("audit_logs")
-}
-
-model LeavePolicy {
-  id               Int            @id @default(autoincrement())
-  name             String         @unique
-  description      String?
-  daysPerYear      Int            @map("days_per_year")
-  requiresApproval Boolean        @default(true) @map("requires_approval")
-  isActive         Boolean        @default(true) @map("is_active")
-  leaveRequests    LeaveRequest[]
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-
-  @@map("leave_policies")
-}
-
-model LeaveRequest {
-  id             Int         @id @default(autoincrement())
-  employeeId     Int         @map("employee_id")
-  employee       Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  policyId       Int         @map("policy_id")
-  policy         LeavePolicy @relation(fields: [policyId], references: [id])
-  startDate      DateTime    @map("start_date")
-  endDate        DateTime    @map("end_date")
-  daysCount      Int         @map("days_count")
-  status         LeaveStatus @default(pending)
-  reason         String?
-  approvedById   Int?        @map("approved_by")
-  approvedBy     Employee?   @relation("ApprovedBy", fields: [approvedById], references: [id])
-  approvedAt     DateTime?   @map("approved_at")
-  rejectedReason String?     @map("rejected_reason")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-
-  @@index([employeeId])
-  @@index([status])
-  @@index([startDate, endDate])
-  @@map("leave_requests")
-}
-
-model TicketCategory {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  slaHours    Int?     @map("sla_hours")
-  tickets     Ticket[]
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("ticket_categories")
-}
-
-model Ticket {
-  id           Int             @id @default(autoincrement())
-  title        String
-  description  String?
-  categoryId   Int?            @map("category_id")
-  category     TicketCategory? @relation(fields: [categoryId], references: [id])
-  createdById  Int?            @map("created_by")
-  createdBy    Employee?       @relation("TicketCreator", fields: [createdById], references: [id])
-  assignedToId Int?            @map("assigned_to")
-  assignedTo   Employee?       @relation("TicketAssignee", fields: [assignedToId], references: [id])
-  priority     TicketPriority  @default(medium)
-  status       TicketStatus    @default(open)
-  resolution   String?
-  resolvedAt   DateTime?       @map("resolved_at")
-  comments     TicketComment[]
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
-
-  @@index([createdById])
-  @@index([assignedToId])
-  @@index([status])
-  @@index([priority])
-  @@map("tickets")
-}
-
-model TicketComment {
-  id         Int      @id @default(autoincrement())
-  ticketId   Int      @map("ticket_id")
-  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  employeeId Int      @map("employee_id")
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  comment    String
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@index([ticketId])
-  @@map("ticket_comments")
-}
-
-model Document {
-  id            Int                 @id @default(autoincrement())
-  title         String
-  description   String?
-  fileName      String              @map("file_name")
-  filePath      String              @map("file_path")
-  fileSize      Int?                @map("file_size")
-  mimeType      String?             @map("mime_type")
-  uploadedById  Int?                @map("uploaded_by")
-  uploadedBy    Employee?           @relation(fields: [uploadedById], references: [id])
-  isCompanyDoc  Boolean             @default(false) @map("is_company_doc")
-  department    String?
-  version       Int                 @default(1)
-  downloadCount Int                 @default(0) @map("download_count")
-  accessLogs    DocumentAccessLog[]
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
-
-  @@index([uploadedById])
-  @@index([isCompanyDoc])
-  @@map("documents")
-}
-
-model DocumentAccessLog {
-  id         Int        @id @default(autoincrement())
-  documentId Int        @map("document_id")
-  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  employeeId Int        @map("employee_id")
-  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  accessType AccessType @map("access_type")
-  accessedAt DateTime   @default(now()) @map("accessed_at")
-
-  @@index([documentId])
-  @@map("document_access_logs")
-}
-
-model Payroll {
-  id           Int                @id @default(autoincrement())
-  employeeId   Int                @map("employee_id")
-  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  month        Int
-  year         Int
-  fileName     String             @map("file_name")
-  filePath     String             @map("file_path")
-  uploadedById Int?               @map("uploaded_by")
-  uploadedBy   Employee?          @relation("PayrollUploader", fields: [uploadedById], references: [id])
-  uploadedAt   DateTime           @default(now()) @map("uploaded_at")
-  accessLogs   PayrollAccessLog[]
-
-  @@unique([employeeId, month, year])
-  @@index([employeeId])
-  @@index([year, month])
-  @@map("payrolls")
-}
-
-model PayrollAccessLog {
-  id           Int      @id @default(autoincrement())
-  payrollId    Int      @map("payroll_id")
-  payroll      Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
-  accessedById Int      @map("accessed_by")
-  accessedBy   Employee @relation(fields: [accessedById], references: [id], onDelete: Cascade)
-  accessedAt   DateTime @default(now()) @map("accessed_at")
-  ipAddress    String?  @map("ip_address")
-
-  @@index([payrollId])
-  @@map("payroll_access_logs")
+model Role {
+  id    String @id @default(uuid())
+  name  String @unique
+  users User[]
+  tools Tool[]
 }
 
 model Tool {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  category    String?
-  link        String?
-  description String?
-  icon        String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id       String @id @default(uuid())
+  name     String
+  category String
+  roles    Role[]
+}
 
-  @@map("tools")
+model JobTitle {
+  id        String     @id @default(uuid())
+  title     String
+  level     String
+  employees Employee[]
+}
+
+model LeaveRequest {
+  id         String   @id @default(uuid())
+  startDate  DateTime
+  endDate    DateTime
+  status     String
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+}
+
+model PayrollRecord {
+  id         String   @id @default(uuid())
+  period     String
+  netAmount  Decimal
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+}
+
+model OnboardingChecklist {
+  id         String   @id @default(uuid())
+  completed  Boolean  @default(false)
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String
-  title     String
-  content   String?
-  link      String?
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([userId])
-  @@index([userId, isRead])
-  @@map("notifications")
+  id      String @id @default(uuid())
+  message String
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
 }
 
-model OnboardingTask {
-  id          Int       @id @default(autoincrement())
-  userId      Int       @map("user_id")
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taskName    String    @map("task_name")
-  completed   Boolean   @default(false)
-  completedAt DateTime? @map("completed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
 
-  @@index([userId])
-  @@map("onboarding_tasks")
+model Document {
+  id         String   @id @default(uuid())
+  title      String
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+}
+
+model Ticket {
+  id         String   @id @default(uuid())
+  title      String
+  status     String
+  priority   String
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
 }
