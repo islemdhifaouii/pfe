@@ -3,7 +3,7 @@ import { User } from '@prisma/client';
 import { ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/auth.jwt.guard';
-
+import { AuthHelpers } from '../../shared/helpers/auth.helpers';
 import { UserService } from './user.service';
 
 @ApiTags('users')
@@ -19,8 +19,13 @@ export class UserController {
 
   @Post('user')
   async signupUser(
-    @Body() userData: { name?: string; email: string; password: string },
+    @Body() userData: { name: string; email: string; password: string },
   ): Promise<User> {
-    return this.userService.createUser(userData);
+    const hashedPassword = await AuthHelpers.hash(userData.password);
+    return this.userService.createUser({
+      username: userData.name,
+      email: userData.email,
+      passwordHash: hashedPassword,
+    });
   }
 }

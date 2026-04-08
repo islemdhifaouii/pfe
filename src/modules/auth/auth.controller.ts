@@ -6,11 +6,15 @@ import { JWT_EXPIRY_SECONDS } from '../../shared/constants/global.constants';
 
 import { AuthService } from './auth.service';
 import { AuthResponseDTO, LoginUserDTO, RegisterUserDTO } from './auth.dto';
+import { AuditService } from '../audit/audit.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Post('login')
   @ApiOperation({ description: 'Login user' })
@@ -29,12 +33,16 @@ export class AuthController {
       httpOnly: true,
     });
 
+    await this.auditService.log('User logged in', loginData.user.id);
+
     return res.status(200).send(loginData);
   }
 
   @Post('register')
   async register(@Body() user: RegisterUserDTO): Promise<User> {
-    return this.authService.register(user);
+    const newUser = await this.authService.register(user);
+    await this.auditService.log('User registered', newUser.id);
+    return newUser;
   }
 
   @Post('logout')

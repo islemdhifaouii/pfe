@@ -3,7 +3,6 @@ import { MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { UserModule } from '../user/user.module';
-import { PostModule } from '../post/post.module';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { GLOBAL_CONFIG } from '../../configs/global.config';
@@ -12,17 +11,31 @@ import { AppService } from './app.service';
 import { AppController } from './app.controller';
 import { LoggerMiddleware } from '../../middlewares/logger.middleware';
 
+import { EmployeeModule } from '../employee/employee.module';
+import { LeaveModule } from '../leave/leave.module';
+import { AuditModule } from '../audit/audit.module';
+
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditInterceptor } from '../../interceptors/audit.interceptor';
 @Module({
   imports: [
     LoggerModule,
     PrismaModule,
     AuthModule,
     UserModule,
-    PostModule,
+    EmployeeModule,
+    LeaveModule,
+    AuditModule,
     ConfigModule.forRoot({ isGlobal: true, load: [() => GLOBAL_CONFIG] }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ],
   exports: [],
 })
 export class AppModule {

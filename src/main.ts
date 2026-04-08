@@ -14,9 +14,7 @@ import { InvalidFormExceptionFilter } from './filters/invalid.form.exception.fil
 import { AllExceptionsFilter } from './filters/all.exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'error', 'warn'],
-  });
+  const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix(API_PREFIX);
 
@@ -54,9 +52,6 @@ async function bootstrap() {
   }
 
   const PORT = process.env.PORT || GLOBAL_CONFIG.nest.port;
-  await app.listen(PORT, async () => {
-    const myLogger = await app.resolve(MyLogger);
-    myLogger.log(`Server started listening: ${PORT}`);
-  });
+  await app.listen(PORT, '0.0.0.0');
 }
 bootstrap();

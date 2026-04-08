@@ -28,7 +28,7 @@ export class AuthService {
 
     const isMatch = await AuthHelpers.verify(
       loginUserDTO.password,
-      userData.password,
+      userData.passwordHash,
     );
 
     if (!isMatch) {
@@ -37,7 +37,7 @@ export class AuthService {
 
     const payload = {
       id: userData.id,
-      name: userData.name,
+      name: userData.username,
       email: userData.email,
       password: null,
       // role: userData.role,
@@ -48,11 +48,18 @@ export class AuthService {
     });
 
     return {
-      user: payload,
+      user: userData,
       accessToken: accessToken,
     };
   }
-  public async register(user: RegisterUserDTO): Promise<User> {
-    return this.userService.createUser(user);
+ public async register(user: RegisterUserDTO): Promise<User> {
+    
+    const hashedPassword = await AuthHelpers.hash(user.password);
+
+    return this.userService.createUser({
+      username: user.name, // map name → username
+      email: user.email,
+      passwordHash: hashedPassword,
+    });
   }
 }
